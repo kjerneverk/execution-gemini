@@ -10,7 +10,13 @@ export default defineConfig({
       formats: ["es"],
     },
     rollupOptions: {
-      external: ["@google/generative-ai", "execution"],
+      external: [
+        "@google/generative-ai",
+        "execution",
+        "@theunwalked/offrecord",
+        "@theunwalked/spotclean",
+        "node:crypto",
+      ],
     },
     sourcemap: true,
     minify: false,

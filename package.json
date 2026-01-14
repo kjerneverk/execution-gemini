@@ -37,7 +37,9 @@
     "url": "https://github.com/kjerneverk/execution-gemini"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.0"
+    "@google/generative-ai": "^0.24.0",
+    "@theunwalked/offrecord": "^0.0.1",
+    "@theunwalked/spotclean": "^0.0.3"
   },
   "devDependencies": {
     "@types/node": "^25.0.6",
