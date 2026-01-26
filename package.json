@@ -1,6 +1,6 @@
 {
   "name": "@riotprompt/execution-gemini",
-  "version": "0.0.4",
+  "version": "1.0.0",
   "description": "Google Gemini provider for execution interface",
   "type": "module",
   "main": "./dist/index.js",
@@ -20,7 +20,7 @@
     "test": "vitest run --coverage",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src",
-    "precommit": "npm run lint && npm run test",
+    "precommit": "npm run build && npm run lint && npm run test",
     "prepublishOnly": "npm run clean && npm run build"
   },
   "keywords": [
@@ -37,7 +37,9 @@
     "url": "https://github.com/kjerneverk/execution-gemini"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.0"
+    "@google/generative-ai": "^0.24.0",
+    "@theunwalked/offrecord": "^0.0.1",
+    "@theunwalked/spotclean": "^0.0.3"
   },
   "devDependencies": {
     "@types/node": "^25.0.6",
