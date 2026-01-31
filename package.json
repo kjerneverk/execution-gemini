@@ -1,6 +1,6 @@
 {
-  "name": "@riotprompt/execution-gemini",
-  "version": "1.0.3",
+  "name": "@kjerneverk/execution-gemini",
+  "version": "1.0.4",
   "description": "Google Gemini provider for execution interface",
   "type": "module",
   "main": "./dist/index.js",
