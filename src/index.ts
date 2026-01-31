@@ -7,12 +7,12 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { getRedactor } from '@theunwalked/offrecord';
+import { getRedactor } from '@utilarium/offrecord';
 import { 
     createSafeError, 
     configureErrorSanitizer,
     configureSecretGuard,
-} from '@theunwalked/spotclean';
+} from '@utilarium/spotclean';
 
 // Register Gemini API key patterns on module load
 const redactor = getRedactor();

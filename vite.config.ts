@@ -13,8 +13,8 @@ export default defineConfig({
       external: [
         "@google/generative-ai",
         "execution",
-        "@theunwalked/offrecord",
-        "@theunwalked/spotclean",
+        "@utilarium/offrecord",
+        "@utilarium/spotclean",
         "node:crypto",
       ],
     },
