@@ -1,6 +1,6 @@
 {
   "name": "@kjerneverk/execution-gemini",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Google Gemini provider for execution interface",
   "type": "module",
   "main": "./dist/index.js",
@@ -39,7 +39,8 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.0",
     "@utilarium/offrecord": "^0.0.3",
-    "@utilarium/spotclean": "^0.0.4"
+    "@utilarium/spotclean": "^0.0.4",
+    "undici": "^7.21.0"
   },
   "devDependencies": {
     "@types/node": "^25.0.6",
