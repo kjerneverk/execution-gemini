@@ -8,6 +8,7 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getRedactor } from '@utilarium/offrecord';
+import { getProxyUrl, withProxyFetch } from './proxy.js';
 import { 
     createSafeError, 
     configureErrorSanitizer,
@@ -129,119 +130,125 @@ export class GeminiProvider implements Provider {
         }
 
         try {
-            const genAI = new GoogleGenerativeAI(apiKey);
+            const proxyUrl = getProxyUrl();
 
-            const modelName = options.model || request.model || 'gemini-1.5-pro';
+            const runWithGenAI = async () => {
+                const genAI = new GoogleGenerativeAI(apiKey);
 
-            // Handle generation config for structured output
-            const generationConfig: any = {};
+                const modelName = options.model || request.model || 'gemini-1.5-pro';
 
-            if (request.responseFormat?.type === 'json_schema') {
-                generationConfig.responseMimeType = 'application/json';
+                // Handle generation config for structured output
+                const generationConfig: any = {};
 
-                const openAISchema = request.responseFormat.json_schema.schema;
+                if (request.responseFormat?.type === 'json_schema') {
+                    generationConfig.responseMimeType = 'application/json';
 
-                // Map schema types to uppercase for Gemini
-                const mapSchema = (s: any): any => {
-                    if (!s) return undefined;
+                    const openAISchema = request.responseFormat.json_schema.schema;
 
-                    const newSchema: any = { ...s };
+                    // Map schema types to uppercase for Gemini
+                    const mapSchema = (s: any): any => {
+                        if (!s) return undefined;
 
-                    if (newSchema.type) {
-                        newSchema.type =
-                            typeof newSchema.type === 'string'
-                                ? (newSchema.type as string).toUpperCase()
-                                : newSchema.type;
-                    }
+                        const newSchema: any = { ...s };
 
-                    if (newSchema.properties) {
-                        const newProps: any = {};
-                        for (const [key, val] of Object.entries(newSchema.properties)) {
-                            newProps[key] = mapSchema(val);
+                        if (newSchema.type) {
+                            newSchema.type =
+                                typeof newSchema.type === 'string'
+                                    ? (newSchema.type as string).toUpperCase()
+                                    : newSchema.type;
                         }
-                        newSchema.properties = newProps;
+
+                        if (newSchema.properties) {
+                            const newProps: any = {};
+                            for (const [key, val] of Object.entries(newSchema.properties)) {
+                                newProps[key] = mapSchema(val);
+                            }
+                            newSchema.properties = newProps;
+                        }
+
+                        if (newSchema.items) {
+                            newSchema.items = mapSchema(newSchema.items);
+                        }
+
+                        delete newSchema.additionalProperties;
+                        delete newSchema['$schema'];
+
+                        return newSchema;
+                    };
+
+                    generationConfig.responseSchema = mapSchema(openAISchema);
+                }
+
+                // Extract system instruction
+                let systemInstruction = '';
+
+                for (const msg of request.messages) {
+                    if (msg.role === 'system' || msg.role === 'developer') {
+                        systemInstruction +=
+                            (typeof msg.content === 'string'
+                                ? msg.content
+                                : JSON.stringify(msg.content)) + '\n\n';
                     }
+                }
 
-                    if (newSchema.items) {
-                        newSchema.items = mapSchema(newSchema.items);
-                    }
+                const configuredModel = genAI.getGenerativeModel({
+                    model: modelName,
+                    systemInstruction: systemInstruction
+                        ? systemInstruction.trim()
+                        : undefined,
+                    generationConfig,
+                });
 
-                    delete newSchema.additionalProperties;
-                    delete newSchema['$schema'];
+                // Build history/messages
+                const chatHistory = [];
+                let lastUserMessage = '';
 
-                    return newSchema;
-                };
+                for (const msg of request.messages) {
+                    if (msg.role === 'system' || msg.role === 'developer') continue;
 
-                generationConfig.responseSchema = mapSchema(openAISchema);
-            }
-
-            // Extract system instruction
-            let systemInstruction = '';
-
-            for (const msg of request.messages) {
-                if (msg.role === 'system' || msg.role === 'developer') {
-                    systemInstruction +=
-                        (typeof msg.content === 'string'
+                    const content =
+                        typeof msg.content === 'string'
                             ? msg.content
-                            : JSON.stringify(msg.content)) + '\n\n';
-                }
-            }
+                            : JSON.stringify(msg.content);
 
-            const configuredModel = genAI.getGenerativeModel({
-                model: modelName,
-                systemInstruction: systemInstruction
-                    ? systemInstruction.trim()
-                    : undefined,
-                generationConfig,
-            });
-
-            // Build history/messages
-            const chatHistory = [];
-            let lastUserMessage = '';
-
-            for (const msg of request.messages) {
-                if (msg.role === 'system' || msg.role === 'developer') continue;
-
-                const content =
-                    typeof msg.content === 'string'
-                        ? msg.content
-                        : JSON.stringify(msg.content);
-
-                if (msg.role === 'user') {
-                    lastUserMessage = content;
-                }
-
-                chatHistory.push({
-                    role: msg.role === 'assistant' ? 'model' : 'user',
-                    parts: [{ text: content }],
-                });
-            }
-
-            let result;
-
-            if (chatHistory.length > 1) {
-                const lastMsg = chatHistory.pop();
-                const chat = configuredModel.startChat({
-                    history: chatHistory,
-                });
-                result = await chat.sendMessage(lastMsg?.parts[0].text || '');
-            } else {
-                result = await configuredModel.generateContent(lastUserMessage || ' ');
-            }
-
-            const response = await result.response;
-            const text = response.text();
-
-            return {
-                content: text,
-                model: modelName,
-                usage: response.usageMetadata
-                    ? {
-                        inputTokens: response.usageMetadata.promptTokenCount,
-                        outputTokens: response.usageMetadata.candidatesTokenCount,
+                    if (msg.role === 'user') {
+                        lastUserMessage = content;
                     }
-                    : undefined,
+
+                    chatHistory.push({
+                        role: msg.role === 'assistant' ? 'model' : 'user',
+                        parts: [{ text: content }],
+                    });
+                }
+
+                let result;
+
+                if (chatHistory.length > 1) {
+                    const lastMsg = chatHistory.pop();
+                    const chat = configuredModel.startChat({
+                        history: chatHistory,
+                    });
+                    result = await chat.sendMessage(lastMsg?.parts[0].text || '');
+                } else {
+                    result = await configuredModel.generateContent(lastUserMessage || ' ');
+                }
+
+                const response = await result.response;
+                const text = response.text();
+
+                return {
+                    content: text,
+                    model: modelName,
+                    usage: response.usageMetadata
+                        ? {
+                            inputTokens: response.usageMetadata.promptTokenCount,
+                            outputTokens: response.usageMetadata.candidatesTokenCount,
+                        }
+                        : undefined,
+                };
             };
+
+            return proxyUrl ? withProxyFetch(proxyUrl, runWithGenAI) : runWithGenAI();
         } catch (error) {
             // Sanitize error to remove any API keys from error messages
             // Use spotclean for comprehensive error sanitization
