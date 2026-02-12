@@ -12,6 +12,7 @@ export default defineConfig({
     rollupOptions: {
       external: [
         "@google/generative-ai",
+        "undici",
         "execution",
         "@utilarium/offrecord",
         "@utilarium/spotclean",
