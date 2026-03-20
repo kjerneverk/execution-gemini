@@ -7,13 +7,16 @@ Google Gemini provider for `execution` interface.
 ```typescript
 import { GeminiProvider } from 'execution-gemini';
 
-const provider = new GeminiProvider({
-  apiKey: process.env.GOOGLE_API_KEY
-});
+const provider = new GeminiProvider();
 
-const response = await provider.execute(messages, {
-  model: 'gemini-1.5-pro'
-});
+const response = await provider.execute(
+  {
+    model: 'gemini-2.0-flash',
+    messages: [{ role: 'user', content: 'Hello!' }],
+    addMessage: () => {},
+  },
+  { apiKey: process.env.GEMINI_API_KEY }
+);
 ```
 
 ## Supported Models
@@ -22,10 +25,10 @@ const response = await provider.execute(messages, {
 |-------|--------|-------|
 | gemini-1.5-pro | ✅ | ✅ |
 | gemini-1.5-flash | ✅ | ✅ |
-| gemini-1.0-pro | ❌ | ✅ |
+| gemini-2.0-flash | ✅ | ✅ |
+| gemini-2.5-flash | ✅ | ✅ |
 
 ## Dependencies
 
-- `@google/generative-ai` - Google AI SDK
-- `execution` - Interface definitions (peer)
-
+- `@google/genai` — unified Google Gen AI SDK (Gemini Developer API and Vertex)
+- `execution` — Interface definitions (peer)

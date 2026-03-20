@@ -6,11 +6,15 @@
  * @packageDocumentation
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import {
+    GoogleGenAI,
+    type Content,
+    type GenerateContentConfig,
+} from '@google/genai';
 import { getRedactor } from '@utilarium/offrecord';
 import { getProxyUrl, withProxyFetch } from './proxy.js';
-import { 
-    createSafeError, 
+import {
+    createSafeError,
     configureErrorSanitizer,
     configureSecretGuard,
 } from '@utilarium/spotclean';
@@ -96,6 +100,27 @@ export interface Provider {
     supportsModel?(model: Model): boolean;
 }
 
+/** Strip unsupported JSON Schema fields for Gemini `responseJsonSchema`. */
+function prepareJsonSchemaForGenai(schema: unknown): unknown {
+    if (!schema || typeof schema !== 'object') {
+        return schema;
+    }
+    const s = schema as Record<string, unknown>;
+    const out: Record<string, unknown> = { ...s };
+    delete out.additionalProperties;
+    delete out['$schema'];
+    if (out.properties && typeof out.properties === 'object') {
+        const props = out.properties as Record<string, unknown>;
+        out.properties = Object.fromEntries(
+            Object.entries(props).map(([k, v]) => [k, prepareJsonSchemaForGenai(v)])
+        );
+    }
+    if (out.items !== undefined) {
+        out.items = prepareJsonSchemaForGenai(out.items);
+    }
+    return out;
+}
+
 /**
  * Gemini Provider implementation
  */
@@ -118,7 +143,7 @@ export class GeminiProvider implements Provider {
         options: ExecutionOptions = {}
     ): Promise<ProviderResponse> {
         const apiKey = options.apiKey || process.env.GEMINI_API_KEY;
-        
+
         if (!apiKey) {
             throw new Error('Gemini API key is required. Set GEMINI_API_KEY environment variable.');
         }
@@ -133,50 +158,24 @@ export class GeminiProvider implements Provider {
             const proxyUrl = getProxyUrl();
 
             const runWithGenAI = async () => {
-                const genAI = new GoogleGenerativeAI(apiKey);
+                const ai = new GoogleGenAI({ apiKey });
 
                 const modelName = options.model || request.model || 'gemini-1.5-pro';
 
-                // Handle generation config for structured output
-                const generationConfig: any = {};
+                const sessionConfig: GenerateContentConfig = {};
 
                 if (request.responseFormat?.type === 'json_schema') {
-                    generationConfig.responseMimeType = 'application/json';
+                    sessionConfig.responseMimeType = 'application/json';
+                    sessionConfig.responseJsonSchema = prepareJsonSchemaForGenai(
+                        request.responseFormat.json_schema.schema
+                    );
+                }
 
-                    const openAISchema = request.responseFormat.json_schema.schema;
-
-                    // Map schema types to uppercase for Gemini
-                    const mapSchema = (s: any): any => {
-                        if (!s) return undefined;
-
-                        const newSchema: any = { ...s };
-
-                        if (newSchema.type) {
-                            newSchema.type =
-                                typeof newSchema.type === 'string'
-                                    ? (newSchema.type as string).toUpperCase()
-                                    : newSchema.type;
-                        }
-
-                        if (newSchema.properties) {
-                            const newProps: any = {};
-                            for (const [key, val] of Object.entries(newSchema.properties)) {
-                                newProps[key] = mapSchema(val);
-                            }
-                            newSchema.properties = newProps;
-                        }
-
-                        if (newSchema.items) {
-                            newSchema.items = mapSchema(newSchema.items);
-                        }
-
-                        delete newSchema.additionalProperties;
-                        delete newSchema['$schema'];
-
-                        return newSchema;
-                    };
-
-                    generationConfig.responseSchema = mapSchema(openAISchema);
+                if (options.temperature !== undefined) {
+                    sessionConfig.temperature = options.temperature;
+                }
+                if (options.maxTokens !== undefined) {
+                    sessionConfig.maxOutputTokens = options.maxTokens;
                 }
 
                 // Extract system instruction
@@ -191,16 +190,12 @@ export class GeminiProvider implements Provider {
                     }
                 }
 
-                const configuredModel = genAI.getGenerativeModel({
-                    model: modelName,
-                    systemInstruction: systemInstruction
-                        ? systemInstruction.trim()
-                        : undefined,
-                    generationConfig,
-                });
+                if (systemInstruction.trim()) {
+                    sessionConfig.systemInstruction = systemInstruction.trim();
+                }
 
                 // Build history/messages
-                const chatHistory = [];
+                const chatHistory: Content[] = [];
                 let lastUserMessage = '';
 
                 for (const msg of request.messages) {
@@ -221,28 +216,35 @@ export class GeminiProvider implements Provider {
                     });
                 }
 
-                let result;
+                let response;
 
                 if (chatHistory.length > 1) {
-                    const lastMsg = chatHistory.pop();
-                    const chat = configuredModel.startChat({
+                    const lastMsg = chatHistory.pop()!;
+                    const chat = ai.chats.create({
+                        model: modelName,
+                        config: sessionConfig,
                         history: chatHistory,
                     });
-                    result = await chat.sendMessage(lastMsg?.parts[0].text || '');
+                    response = await chat.sendMessage({
+                        message: lastMsg.parts?.[0]?.text || '',
+                    });
                 } else {
-                    result = await configuredModel.generateContent(lastUserMessage || ' ');
+                    response = await ai.models.generateContent({
+                        model: modelName,
+                        contents: lastUserMessage || ' ',
+                        config: sessionConfig,
+                    });
                 }
 
-                const response = await result.response;
-                const text = response.text();
+                const text = response.text ?? '';
 
                 return {
                     content: text,
                     model: modelName,
                     usage: response.usageMetadata
                         ? {
-                            inputTokens: response.usageMetadata.promptTokenCount,
-                            outputTokens: response.usageMetadata.candidatesTokenCount,
+                            inputTokens: response.usageMetadata.promptTokenCount ?? 0,
+                            outputTokens: response.usageMetadata.candidatesTokenCount ?? 0,
                         }
                         : undefined,
                 };
@@ -267,6 +269,6 @@ export function createGeminiProvider(): GeminiProvider {
 /**
  * Package version
  */
-export const VERSION = '0.0.1';
+export const VERSION = '1.0.12';
 
 export default GeminiProvider;

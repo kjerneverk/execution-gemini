@@ -39,6 +39,11 @@ describe('GeminiProvider', () => {
       expect(provider.supportsModel('gemini-2.0-flash-exp')).toBe(true);
     });
 
+    it('should support Gemini 2.5 models', () => {
+      expect(provider.supportsModel('gemini-2.5-flash')).toBe(true);
+      expect(provider.supportsModel('gemini-2.5-pro')).toBe(true);
+    });
+
     it('should support Gemini 1.0 models', () => {
       expect(provider.supportsModel('gemini-1.0-pro')).toBe(true);
       expect(provider.supportsModel('gemini-pro')).toBe(true);
@@ -117,7 +122,7 @@ describe('createGeminiProvider', () => {
 
 describe('VERSION', () => {
   it('should export version string', () => {
-    expect(VERSION).toBe('0.0.1');
+    expect(VERSION).toBe('1.0.12');
   });
 });
 
