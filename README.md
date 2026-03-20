@@ -5,7 +5,7 @@ Google Gemini provider implementation for LLM execution. Implements the `Provide
 ## Installation
 
 ```bash
-npm install execution-gemini @google/generative-ai
+npm install execution-gemini @google/genai
 ```
 
 ## Usage
@@ -38,10 +38,7 @@ console.log(response.usage); // { inputTokens: X, outputTokens: Y }
 
 ## Supported Models
 
-The provider supports all Gemini models:
-- Gemini 1.5 Pro
-- Gemini 1.5 Flash
-- Gemini 1.0 Pro
+The provider supports Gemini model IDs (any model id starting with `gemini`), including current releases such as Gemini 2.0 / 2.5 Flash and Pro, and earlier 1.5 / 1.0 families.
 
 ## API Key
 
@@ -79,4 +76,4 @@ interface ProviderResponse {
 
 Apache-2.0
 
-<!-- v1.0.0 -->
+<!-- v1.0.12 -->
