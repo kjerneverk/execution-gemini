@@ -5,8 +5,8 @@
  * using undici's ProxyAgent. Respects NO_PROXY/no_proxy for bypass lists and
  * NODE_TLS_REJECT_UNAUTHORIZED for TLS verification.
  *
- * Note: The @google/generative-ai SDK does not expose a custom fetch option.
- * We temporarily replace the global fetch for the duration of API calls.
+ * The @google/genai client uses the global `fetch`. We temporarily replace it
+ * for the duration of API calls so traffic can be routed through the proxy.
  */
 
 import { ProxyAgent, fetch as undiciFetch } from 'undici';
@@ -95,7 +95,7 @@ export function createProxyFetch(proxyUrl: string): typeof fetch {
 
 /**
  * Run a callback with the global fetch temporarily replaced by a proxy fetch.
- * Used because @google/generative-ai does not support a custom fetch option.
+ * Used because routing SDK traffic through a proxy requires a custom fetch.
  *
  * @param proxyUrl - The proxy URL
  * @param fn - Async callback to run (e.g. making Gemini API calls)
